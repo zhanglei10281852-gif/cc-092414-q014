@@ -60,3 +60,29 @@ class RiskDecision(BaseModel):
     reason: str = Field(..., min_length=1, max_length=300)
     operator: str = Field(..., min_length=1, max_length=80)
 
+
+class LoadStopInput(BaseModel):
+    stop_seq: int = Field(..., ge=1)
+    destination: str = Field(..., min_length=1, max_length=160)
+    arrive_due_at: str = Field(..., min_length=20, max_length=40)
+
+
+class LoadItemInput(BaseModel):
+    lot_id: int = Field(..., ge=1)
+    stop_seq: int = Field(..., ge=1)
+    quantity_kg: float = Field(..., gt=0, le=1000000)
+    target_temp_min: float = Field(..., ge=-40, le=30)
+    target_temp_max: float = Field(..., ge=-20, le=50)
+
+
+class LoadPlanCreate(BaseModel):
+    plan_code: str = Field(..., min_length=3, max_length=64)
+    carrier: str = Field(..., min_length=1, max_length=120)
+    vehicle_no: str = Field(..., min_length=1, max_length=40)
+    capacity_kg: float = Field(..., gt=0, le=1000000)
+    target_temp_min: float = Field(default=0, ge=-40, le=30)
+    target_temp_max: float = Field(default=8, ge=-20, le=50)
+    departure_at: str = Field(..., min_length=20, max_length=40)
+    stops: list[LoadStopInput] = Field(..., min_length=1)
+    items: list[LoadItemInput] = Field(..., min_length=1)
+

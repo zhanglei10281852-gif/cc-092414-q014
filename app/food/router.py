@@ -2,8 +2,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from app.food.schemas import LotCreate, RiskDecision, SampleCreate, ShipmentCreate, TemperatureRecord, TestResultCreate
-from app.food.service import FoodService
+from app.food.schemas import (
+    LoadPlanCreate,
+    LotCreate,
+    RiskDecision,
+    SampleCreate,
+    ShipmentCreate,
+    TemperatureRecord,
+    TestResultCreate,
+)
+from app.food.service import FoodService, LoadPlanValidationError
 
 router = APIRouter(prefix="/api/food", tags=["食品安全"])
 
@@ -85,5 +93,81 @@ def add_temperature(shipment_id: int, payload: TemperatureRecord):
 def decide_risk(lot_id: int, payload: RiskDecision):
     try:
         return service().decide_risk(lot_id, payload.model_dump())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="批次不存在") from exc
+
+
+def _load_plan_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, LoadPlanValidationError):
+        return HTTPException(
+            status_code=exc.status_code if exc.status_code in (400, 409, 422) else 409,
+            detail={"code": exc.code, "message": exc.code, "details": exc.details},
+        )
+    if isinstance(exc, KeyError):
+        key = exc.args[0] if exc.args else ""
+        message = "装车计划不存在" if key == "load_plan_not_found" else "批次不存在"
+        return HTTPException(status_code=404, detail=message)
+    if "UNIQUE" in str(exc).upper():
+        return HTTPException(status_code=409, detail="计划编码已存在")
+    raise exc
+
+
+@router.post("/load-plans", status_code=201)
+def create_load_plan(payload: LoadPlanCreate):
+    try:
+        return service().create_load_plan(payload.model_dump())
+    except Exception as exc:
+        raise _load_plan_error(exc) from exc
+
+
+@router.get("/load-plans")
+def list_load_plans():
+    return service().list_load_plans()
+
+
+@router.get("/load-plans/{plan_id}")
+def get_load_plan(plan_id: int):
+    try:
+        return service().get_load_plan(plan_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="装车计划不存在") from exc
+
+
+@router.put("/load-plans/{plan_id}")
+def update_load_plan(plan_id: int, payload: LoadPlanCreate):
+    try:
+        return service().update_load_plan(plan_id, payload.model_dump())
+    except Exception as exc:
+        raise _load_plan_error(exc) from exc
+
+
+@router.post("/load-plans/{plan_id}/publish")
+def publish_load_plan(plan_id: int):
+    try:
+        return service().publish_load_plan(plan_id)
+    except Exception as exc:
+        raise _load_plan_error(exc) from exc
+
+
+@router.post("/load-plans/{plan_id}/confirm")
+def confirm_load_plan(plan_id: int):
+    try:
+        return service().confirm_load_plan(plan_id)
+    except Exception as exc:
+        raise _load_plan_error(exc) from exc
+
+
+@router.post("/load-plans/{plan_id}/cancel")
+def cancel_load_plan(plan_id: int):
+    try:
+        return service().cancel_load_plan(plan_id)
+    except Exception as exc:
+        raise _load_plan_error(exc) from exc
+
+
+@router.get("/lots/{lot_id}/loading")
+def lot_loading(lot_id: int):
+    try:
+        return service().lot_loading_view(lot_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="批次不存在") from exc
