@@ -12,11 +12,21 @@ class LotCreate(BaseModel):
     harvest_date: str = Field(..., min_length=10, max_length=40)
     quantity_kg: float = Field(..., gt=0, le=1000000)
     trace_code: str = Field(..., min_length=4, max_length=120)
+    storage_temp_min: float = Field(default=0, ge=-40, le=30)
+    storage_temp_max: float = Field(default=8, ge=-20, le=50)
 
     @field_validator("lot_code", "trace_code")
     @classmethod
     def normalize_code(cls, value: str) -> str:
         return value.strip().upper()
+
+    @field_validator("storage_temp_max")
+    @classmethod
+    def validate_temp_range(cls, value: float, info):
+        minimum = info.data.get("storage_temp_min")
+        if minimum is not None and value < minimum:
+            raise ValueError("storage_temp_max 不能低于 storage_temp_min")
+        return value
 
 
 class SampleCreate(BaseModel):
@@ -59,4 +69,44 @@ class RiskDecision(BaseModel):
     decision: str = Field(..., pattern="^(release|hold|recall|destroy)$")
     reason: str = Field(..., min_length=1, max_length=300)
     operator: str = Field(..., min_length=1, max_length=80)
+
+
+class VehicleZone(BaseModel):
+    zone_code: str = Field(..., min_length=1, max_length=40)
+    zone_name: str = Field(default="", max_length=40)
+    temp_min: float = Field(..., ge=-40, le=30)
+    temp_max: float = Field(..., ge=-20, le=50)
+
+
+class VehicleRegister(BaseModel):
+    vehicle_no: str = Field(..., min_length=1, max_length=40)
+    carrier: str = Field(..., min_length=1, max_length=120)
+    capacity_kg: float = Field(..., gt=0, le=100000)
+    zones: list[VehicleZone] = Field(default_factory=list)
+
+
+class PlanStop(BaseModel):
+    stop_order: int = Field(..., ge=1, le=99)
+    node: str = Field(..., min_length=1, max_length=160)
+    planned_arrival_at: str = Field(..., min_length=20, max_length=40)
+
+
+class PlanItem(BaseModel):
+    lot_id: int = Field(..., ge=1)
+    quantity_kg: float = Field(..., gt=0, le=1000000)
+    stop_order: int = Field(..., ge=1, le=99)
+    zone_code: str = Field(default="", max_length=40)
+
+
+class LoadPlanCreate(BaseModel):
+    plan_code: str = Field(..., min_length=3, max_length=64)
+    vehicle_id: int = Field(..., ge=1)
+    departure_at: str = Field(..., min_length=20, max_length=40)
+    stops: list[PlanStop] = Field(default_factory=list)
+    items: list[PlanItem] = Field(..., min_length=1)
+
+
+class LoadPlanUpdate(BaseModel):
+    stops: list[PlanStop] = Field(default_factory=list)
+    items: list[PlanItem] = Field(..., min_length=1)
 
